@@ -7,6 +7,7 @@ import { ApolloDriver } from '@nestjs/apollo';
 import { getGraphQLConfig } from './config/graf_config';
 import { RedisModule } from './redis/redis.module';
 import { AccountModule } from '../modules/auth/account/account.module';
+import { SessionModule } from '@/src/modules/auth/session/session.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -21,7 +22,8 @@ import { AccountModule } from '../modules/auth/account/account.module';
   }),
     PrismaModule,
     RedisModule,
-    AccountModule
+    AccountModule,
+    SessionModule
   ]
 
 })
