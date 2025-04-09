@@ -13,6 +13,7 @@ import { verify } from 'argon2';
 import { ConfigService } from '@nestjs/config';
 import { getSessionMetadata } from '@/src/share/utils/session_metadata_utils';
 import { RedisService } from '@/src/core/redis/redis.service';
+import { destroySession } from '@/src/share/utils/session_utils';
 
 @Injectable()
 export class SessionService {
@@ -29,8 +30,6 @@ export class SessionService {
     if (!login || !password) {
       throw new UnauthorizedException('Логин и пароль обязательны');
     }
-
-    const metadata = getSessionMetadata(req, userAgent);
 
     // Поиск пользователя по имени или email
     const user = await this.prismaService.user.findFirst({
@@ -55,9 +54,11 @@ export class SessionService {
     // Удаляем пароль из объекта перед возвратом
     const { password: _, ...safeUser } = user;
 
-    // Создаем сессию
+    // Генерация метаданных сессии
+    const metadata = getSessionMetadata(req, userAgent);
+
+    // Создаём новую сессию
     return new Promise((resolve, reject) => {
-      // Регенерация сессии перед сохранением (для удаления старых данных)
       req.session.regenerate((err) => {
         if (err) {
           return reject(new InternalServerErrorException('Ошибка при создании новой сессии'));
@@ -67,11 +68,12 @@ export class SessionService {
         req.session.userid = user.id;
         req.session.metadata = metadata;
 
-        // Сохраняем сессию с проверкой на ошибки
+        // Сохранение сессии с обработкой ошибок
         req.session.save((err) => {
           if (err) {
             return reject(new InternalServerErrorException('Не удалось сохранить сессию'));
           }
+          console.log('✅ Сессия успешно создана:', req.session);
           resolve(safeUser);
         });
       });
@@ -79,18 +81,9 @@ export class SessionService {
   }
 
 
+
   public async logout(req: Request) {
-    return new Promise((resolve, reject) => {
-      req.session.destroy((err) => {
-        if (err) {
-          return reject(
-            new InternalServerErrorException('Не удалось завершить сессию'),
-          );
-        }
-        req.res.clearCookie(this.configService.getOrThrow<string>('SESSION_NAME'));
-        resolve(true);
-      });
-    });
+    return destroySession(req,this.configService);
   }
   public async findByUser(req:Request) {
     const userId = req.session.userid;
